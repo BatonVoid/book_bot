@@ -4,7 +4,7 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 
-from database import DatabaseManager
+from database.database import DatabaseManager
 from keyboards import get_admin_keyboard, get_main_keyboard
 from utils import is_admin, format_book_info
 from states import AdminStates

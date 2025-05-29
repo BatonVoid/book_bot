@@ -4,7 +4,7 @@ from sqlalchemy import select, func, and_, or_
 from typing import List, Dict, Any, Optional
 import logging
 
-from models import Base, User, Book, FavoriteBook
+from .models import Base, User, Book, FavoriteBook
 from config import Config
 
 logger = logging.getLogger(__name__)

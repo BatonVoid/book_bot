@@ -5,7 +5,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from config import Config
-from database import DatabaseManager
+from database.database import DatabaseManager
 from handlers import user, admin
 
 # Настройка логирования
