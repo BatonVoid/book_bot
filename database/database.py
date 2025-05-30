@@ -1,4 +1,4 @@
-# database.py - Менеджер базы данных
+# database/database.py - Исправленный менеджер базы данных
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy import select, func, and_, or_
 from typing import List, Dict, Any, Optional
@@ -17,7 +17,8 @@ class DatabaseManager:
         self.engine = create_async_engine(self.database_url, echo=False)
         self.session_maker = async_sessionmaker(self.engine, expire_on_commit=False)
     
-    async def get_session(self) -> AsyncSession:
+    # ИСПРАВЛЕНИЕ: Убираем async из get_session
+    def get_session(self) -> AsyncSession:
         """Получение сессии базы данных"""
         return self.session_maker()
     
