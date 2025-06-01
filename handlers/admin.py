@@ -103,33 +103,121 @@ async def add_book_genre(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("admin_subgenre_"), StateFilter(AdminStates.waiting_for_subgenre))
 async def add_book_subgenre(callback: CallbackQuery, state: FSMContext):
-    """Выбор поджанра и сохранение книги"""
+    """Выбор поджанра и переход к файлу"""
     subgenre = callback.data.split("admin_subgenre_")[1] if callback.data.split("admin_subgenre_")[1] else None
+    await state.update_data(subgenre=subgenre)
     
-    # Получаем все данные
+    # Переходим к загрузке файла
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📎 Прикрепить файл", callback_data="attach_file")],
+        [InlineKeyboardButton(text="⏭️ Пропустить файл", callback_data="skip_file")]
+    ])
+    
+    await callback.message.edit_text(
+        "📎 Хотите прикрепить файл книги?\n\n"
+        "Поддерживаемые форматы: PDF, EPUB, TXT, DOC, DOCX",
+        reply_markup=keyboard
+    )
+    await state.set_state(AdminStates.waiting_for_file)
+
+@router.callback_query(F.data == "attach_file", StateFilter(AdminStates.waiting_for_file))
+async def request_file(callback: CallbackQuery, state: FSMContext):
+    """Запрос файла от пользователя"""
+    await callback.message.edit_text(
+        "📎 Отправьте файл книги:\n\n"
+        "Поддерживаемые форматы:\n"
+        "• PDF (.pdf)\n"
+        "• EPUB (.epub)\n" 
+        "• TXT (.txt)\n"
+        "• DOC/DOCX (.doc, .docx)\n\n"
+        "Максимальный размер: 50 МБ"
+    )
+
+@router.callback_query(F.data == "skip_file", StateFilter(AdminStates.waiting_for_file))
+async def skip_file_and_save(callback: CallbackQuery, state: FSMContext):
+    """Пропускаем файл и сохраняем книгу"""
+    await save_book_to_database(callback.message, state, file_data=None)
+
+@router.message(F.document, StateFilter(AdminStates.waiting_for_file))
+async def handle_book_file(message: Message, state: FSMContext):
+    """Обработка загруженного файла"""
+    document = message.document
+    
+    # Проверяем размер файла (50 МБ = 52428800 байт)
+    if document.file_size > 52428800:
+        await message.answer(
+            "❌ Файл слишком большой!\n"
+            "Максимальный размер: 50 МБ\n"
+            "Размер вашего файла: {:.1f} МБ".format(document.file_size / 1024 / 1024)
+        )
+        return
+    
+    # Проверяем тип файла
+    allowed_types = ['.pdf', '.epub', '.txt', '.doc', '.docx']
+    file_extension = None
+    
+    if document.file_name:
+        file_extension = '.' + document.file_name.split('.')[-1].lower()
+        if file_extension not in allowed_types:
+            await message.answer(
+                "❌ Неподдерживаемый тип файла!\n"
+                f"Поддерживаемые форматы: {', '.join(allowed_types)}"
+            )
+            return
+    
+    # Сохраняем информацию о файле
+    file_data = {
+        'file_id': document.file_id,
+        'file_name': document.file_name,
+        'file_size': document.file_size,
+        'file_type': file_extension[1:] if file_extension else 'unknown'
+    }
+    
+    await message.answer(
+        f"✅ Файл получен!\n"
+        f"📎 {document.file_name}\n"
+        f"📊 Размер: {document.file_size / 1024 / 1024:.1f} МБ\n\n"
+        f"Сохраняю книгу..."
+    )
+    
+    await save_book_to_database(message, state, file_data)
+
+async def save_book_to_database(message: Message, state: FSMContext, file_data: dict = None):
+    """Сохранение книги в базу данных"""
     data = await state.get_data()
     
-    # Добавляем книгу в БД
+    # Сохраняем книгу
     book_id = await db.add_book(
         title=data['title'],
         author=data['author'],
         year=data['year'],
         description=data['description'],
         genre=data['genre'],
-        subgenre=subgenre
+        subgenre=data.get('subgenre'),
+        file_id=file_data['file_id'] if file_data else None,
+        file_name=file_data['file_name'] if file_data else None,
+        file_size=file_data['file_size'] if file_data else None,
+        file_type=file_data['file_type'] if file_data else None
     )
     
+    # Формируем сообщение об успехе
     success_text = "✅ Книга успешно добавлена!\n\n"
     success_text += f"📖 Название: {data['title']}\n"
     success_text += f"👤 Автор: {data['author']}\n"
     success_text += f"📅 Год: {data['year']}\n"
     success_text += f"🏷️ Жанр: {data['genre']}"
-    if subgenre:
-        success_text += f" / {subgenre}"
+    if data.get('subgenre'):
+        success_text += f" / {data['subgenre']}"
+    
+    if file_data:
+        success_text += f"\n📎 Файл: {file_data['file_name']}"
+        success_text += f"\n📊 Размер: {file_data['file_size'] / 1024 / 1024:.1f} МБ"
+    
     success_text += f"\n📝 Описание: {data['description'][:100]}..."
     
-    await callback.message.edit_text(success_text)
+    await message.answer(success_text)
     await state.clear()
+
 
 @router.message(F.text == "✏️ Редактировать книги")
 async def edit_books_list(message: Message):

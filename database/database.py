@@ -80,8 +80,9 @@ class DatabaseManager:
     # =============== МЕТОДЫ ДЛЯ РАБОТЫ С КНИГАМИ ===============
     
     async def add_book(self, title: str, author: str, year: int, description: str, 
-                      genre: str, subgenre: str = None) -> int:
-        """Добавление книги"""
+                  genre: str, subgenre: str = None, file_id: str = None, 
+                  file_name: str = None, file_size: int = None, file_type: str = None) -> int:
+
         async with self.get_session() as session:
             book = Book(
                 title=title,
@@ -89,16 +90,21 @@ class DatabaseManager:
                 year=year,
                 description=description,
                 genre=genre,
-                subgenre=subgenre
+                subgenre=subgenre,
+                file_id=file_id,
+                file_name=file_name,
+                file_size=file_size,
+                file_type=file_type
             )
             session.add(book)
             await session.commit()
             await session.refresh(book)
-            logger.info(f"Добавлена книга: {title} - {author}")
+            logger.info(f"Добавлена книга: {title} - {author}" + 
+                    (f" с файлом {file_name}" if file_id else ""))
             return book.id
-    
+
     async def get_book_by_id(self, book_id: int) -> Optional[Dict[str, Any]]:
-        """Получение книги по ID"""
+        """Получение книги по ID с информацией о файле"""
         async with self.get_session() as session:
             result = await session.execute(
                 select(Book).where(Book.id == book_id)
@@ -113,7 +119,11 @@ class DatabaseManager:
                     'year': book.year,
                     'description': book.description,
                     'genre': book.genre,
-                    'subgenre': book.subgenre
+                    'subgenre': book.subgenre,
+                    'file_id': book.file_id,
+                    'file_name': book.file_name,
+                    'file_size': book.file_size,
+                    'file_type': book.file_type
                 }
             return None
     

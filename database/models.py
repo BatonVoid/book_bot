@@ -22,7 +22,7 @@ class User(Base):
         return f"<User(telegram_id={self.telegram_id}, username='{self.username}')>"
 
 class Book(Base):
-    """Модель книги"""
+    """Модель книги с поддержкой файлов"""
     __tablename__ = 'books'
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -33,12 +33,16 @@ class Book(Base):
     genre: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     subgenre: Mapped[Optional[str]] = mapped_column(String(100), index=True)
     
-    # Связь с избранными книгами
-    favorite_by_users = relationship("FavoriteBook", back_populates="book", cascade="all, delete-orphan")
+    # НОВЫЕ ПОЛЯ ДЛЯ ФАЙЛОВ
+    file_id: Mapped[Optional[str]] = mapped_column(String(255))  # ID файла в Telegram
+    file_name: Mapped[Optional[str]] = mapped_column(String(255))  # Оригинальное имя файла
+    file_size: Mapped[Optional[int]] = mapped_column(Integer)  # Размер файла в байтах
+    file_type: Mapped[Optional[str]] = mapped_column(String(50))  # Тип файла (pdf, epub, txt)
     
-    def __repr__(self):
-        return f"<Book(title='{self.title}', author='{self.author}', year={self.year})>"
+    favorite_by_users = relationship("FavoriteBook", back_populates="book", cascade="all, delete-orphan")
 
+
+    
 class FavoriteBook(Base):
     """Связь пользователя с избранными книгами"""
     __tablename__ = 'favorite_books'

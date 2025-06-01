@@ -6,7 +6,7 @@ def is_admin(user_id: int) -> bool:
     return user_id in Config.ADMIN_IDS
 
 def format_book_info(book: dict, show_description: bool = True) -> str:
-    """Форматирование информации о книге для отображения"""
+    """Форматирование информации о книге с учетом файлов"""
     text = f"📖 {book['title']}\n"
     text += f"👤 Автор: {book['author']}\n"
     text += f"📅 Год: {book['year']}\n"
@@ -20,6 +20,28 @@ def format_book_info(book: dict, show_description: bool = True) -> str:
         if len(description) > 200:
             description = description[:200] + "..."
         text += f"\n\n📝 Описание:\n{description}"
+    
+    return text
+
+def format_file_size(size_bytes: int) -> str:
+    """Форматирование размера файла"""
+    if size_bytes < 1024:
+        return f"{size_bytes} Б"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} КБ"
+    else:
+        return f"{size_bytes / 1024 / 1024:.1f} МБ"
+
+def get_file_type_emoji(file_type: str) -> str:
+    """Получение эмодзи для типа файла"""
+    emoji_map = {
+        'pdf': '📄',
+        'epub': '📖',
+        'txt': '📝',
+        'doc': '📄',
+        'docx': '📄'
+    }
+    return emoji_map.get(file_type.lower(), '📎')
     
     return text
 

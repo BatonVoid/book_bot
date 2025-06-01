@@ -3,7 +3,7 @@ from aiogram import F, Router
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
-
+import logging
 from database.database import DatabaseManager
 from keyboards import get_main_keyboard, get_genres_keyboard
 from utils import is_admin, format_book_info, format_books_list
@@ -11,6 +11,8 @@ from states import SearchStates
 
 router = Router()
 db = DatabaseManager()
+
+logger = logging.getLogger(__name__)
 
 @router.message(Command("start"))
 async def start_command(message: Message):
@@ -110,24 +112,71 @@ async def back_to_genres(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("book_action_"))
 async def handle_book_action(callback: CallbackQuery):
-    """Действия с книгой"""
+    """Действия с книгой (обновленная версия)"""
     book_id = int(callback.data.split("_")[2])
     user_id = callback.from_user.id
     
     book = await db.get_book_by_id(book_id)
     is_favorite = await db.is_book_in_favorites(user_id, book_id)
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text="💔 Удалить из избранного" if is_favorite else "❤️ Добавить в избранное",
-            callback_data=f"toggle_favorite_{book_id}"
-        )],
-        [InlineKeyboardButton(text="🔙 Назад", callback_data=f"genre_{book['genre']}_0")]
-    ])
+    # Создаем клавиатуру с учетом наличия файла
+    keyboard_buttons = []
     
+    # Кнопка избранного
+    keyboard_buttons.append([InlineKeyboardButton(
+        text="💔 Удалить из избранного" if is_favorite else "❤️ Добавить в избранное",
+        callback_data=f"toggle_favorite_{book_id}"
+    )])
+    
+    # Кнопка скачивания файла (если есть)
+    if book['file_id']:
+        keyboard_buttons.append([InlineKeyboardButton(
+            text=f"📎 Скачать {book['file_type'].upper()}",
+            callback_data=f"download_file_{book_id}"
+        )])
+    
+    # Кнопка назад
+    keyboard_buttons.append([InlineKeyboardButton(
+        text="🔙 Назад", 
+        callback_data=f"genre_{book['genre']}_0"
+    )])
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    
+    # Формируем текст с информацией о файле
     text = format_book_info(book, show_description=True)
     
+    if book['file_id']:
+        text += f"\n\n📎 Доступен файл: {book['file_name']}"
+        text += f"\n📊 Размер: {book['file_size'] / 1024 / 1024:.1f} МБ"
+        text += f"\n📄 Формат: {book['file_type'].upper()}"
+    
     await callback.message.edit_text(text, reply_markup=keyboard)
+
+@router.callback_query(F.data.startswith("download_file_"))
+async def download_book_file(callback: CallbackQuery):
+    """Отправка файла книги пользователю"""
+    book_id = int(callback.data.split("_")[2])
+    book = await db.get_book_by_id(book_id)
+    
+    if not book or not book['file_id']:
+        await callback.answer("Файл не найден ❌")
+        return
+    
+    try:
+        # Отправляем файл пользователю
+        await callback.message.answer_document(
+            document=book['file_id'],
+            caption=f"📖 {book['title']}\n👤 {book['author']}\n📅 {book['year']}"
+        )
+        await callback.answer("Файл отправлен! 📎")
+        
+        # Логируем скачивание
+        logger.info(f"Пользователь {callback.from_user.id} скачал файл книги {book_id}")
+        
+    except Exception as e:
+        logger.error(f"Ошибка при отправке файла {book_id}: {e}")
+        await callback.answer("Ошибка при отправке файла ❌")
 
 @router.callback_query(F.data.startswith("toggle_favorite_"))
 async def toggle_favorite(callback: CallbackQuery):
